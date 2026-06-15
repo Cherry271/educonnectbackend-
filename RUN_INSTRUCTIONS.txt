@@ -1,0 +1,46 @@
+=========================================
+EduConnect Backend Startup Instructions
+=========================================
+
+This document explains how to set up, run, and test the EduConnect backend on Windows.
+
+Prerequisites
+-------------
+- Make sure Python is installed on your system.
+- Ensure MongoDB Atlas is online (configured in the .env file).
+
+Step-by-Step Instructions
+--------------------------
+
+1. Open a terminal (Command Prompt or PowerShell).
+
+2. Navigate to the backend directory:
+   cd c:\Users\Habib\Desktop\chelsy\educonnectbackend-
+
+3. Activate the virtual environment (.venv):
+   
+   - If using Command Prompt (cmd):
+     .venv\Scripts\activate.bat
+     
+   - If using PowerShell:
+     .venv\Scripts\Activate.ps1
+     
+     (Note: If you get an execution policy error in PowerShell, run: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` first)
+
+4. Install dependencies (Optional - only needed if not already installed):
+   pip install -r requirements.txt
+
+5. Start the backend:
+   python start.py
+   
+   *Note: This script will verify your settings, database connection, security, and JWT tokens before automatically starting the Uvicorn server on http://localhost:8000.*
+
+6. Alternative (Direct Uvicorn launch):
+   If you want to bypass the verification checks and launch Uvicorn directly, run:
+   uvicorn app.main:socket_app --host 0.0.0.0 --port 8000 --reload
+
+7. Verify/Test the Backend:
+   Keep the server running in your first terminal, open a NEW terminal window, navigate to the backend directory, activate the virtual environment, and run the test script:
+   python debug_ai.py
+   
+   This script will register a temporary account, hit the live AI chat and quiz endpoints, and print the response to ensure everything is working correctly.
