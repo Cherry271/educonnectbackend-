@@ -56,6 +56,7 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix=settings.API_V1_PREFIX)
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)

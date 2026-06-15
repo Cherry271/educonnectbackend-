@@ -36,6 +36,7 @@ class AuthService:
             "email": data.email.lower(),
             "hashed_password": hash_password(data.password),
             "role": data.role.value,
+            "school": data.school,
             "department": data.department,
             "faculty": data.faculty,
             "bio": data.bio,
@@ -45,9 +46,11 @@ class AuthService:
             "interests": [],
             "followers": [],
             "following": [],
+            "children": [],
             "achievements": [],
             "is_active": True,
             "is_verified": False,
+            "verification_token": f"verify_{uuid.uuid4().hex}",
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow(),
         }
@@ -70,6 +73,43 @@ class AuthService:
         if not user:
             raise ValueError("User not found")
         return self._tokens(user["id"], user["role"])
+
+    async def forgot_password(self, email: str) -> str:
+        user = await self.user_repo.find_by_email(email)
+        if not user:
+            raise ValueError("User not found")
+        reset_token = f"reset_{uuid.uuid4().hex}"
+        await self.user_repo.update(user["id"], {"reset_token": reset_token})
+        return reset_token
+
+    async def reset_password(self, token: str, new_password: str) -> None:
+        db = self.user_repo.collection
+        user_doc = await db.find_one({"reset_token": token})
+        if not user_doc:
+            raise ValueError("Invalid or expired reset token")
+        user_id = str(user_doc["_id"])
+        await self.user_repo.update(user_id, {
+            "hashed_password": hash_password(new_password),
+            "reset_token": None
+        })
+
+    async def verify_email(self, token: str) -> None:
+        db = self.user_repo.collection
+        user_doc = await db.find_one({"verification_token": token})
+        if not user_doc:
+            # Fallback check
+            try:
+                from bson import ObjectId
+                user_doc = await db.find_one({"_id": ObjectId(token)})
+            except Exception:
+                pass
+        if not user_doc:
+            raise ValueError("Invalid verification token")
+        user_id = str(user_doc["_id"])
+        await self.user_repo.update(user_id, {
+            "is_verified": True,
+            "verification_token": None
+        })
 
     @staticmethod
     def _tokens(user_id: str, role: str) -> TokenResponse:

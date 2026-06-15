@@ -22,6 +22,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     db = get_database()
     user = await db.users.find_one({"_id": __import__("bson").ObjectId(user_id)})
     if not user:
+        users_in_db = [u.get("username") for u in getattr(db.users, "docs", [])]
+        print(f"\n--- DEBUG: user_id={user_id} not found. Users in mock DB: {users_in_db} ---")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     if not user.get("is_active", True):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")

@@ -14,6 +14,7 @@ class UserModel(BaseModel):
     email: EmailStr
     hashed_password: str
     role: UserRole = UserRole.STUDENT
+    school: str = ""
     department: str = ""
     faculty: str = ""
     bio: str = ""
@@ -23,6 +24,7 @@ class UserModel(BaseModel):
     interests: list[str] = Field(default_factory=list)
     followers: list[str] = Field(default_factory=list)
     following: list[str] = Field(default_factory=list)
+    children: list[str] = Field(default_factory=list)
     achievements: list[dict[str, Any]] = Field(default_factory=list)
     is_active: bool = True
     is_verified: bool = False

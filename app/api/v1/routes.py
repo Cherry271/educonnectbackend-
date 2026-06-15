@@ -17,7 +17,20 @@ from app.schemas.auth import (
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    VerifyEmailRequest,
 )
+from app.schemas.school import SchoolCreate, SchoolUpdate, SchoolResponse
+from app.schemas.assignment import (
+    AssignmentCreate,
+    AssignmentResponse,
+    SubmissionCreate,
+    SubmissionResponse,
+    GradeCreate,
+    GradeResponse,
+)
+from app.schemas.event import EventCreate, EventUpdate, EventResponse
 from app.schemas.common import PaginatedResponse
 from app.schemas.discussion import DiscussionCommentCreate, DiscussionCreate
 from app.schemas.group import GroupCreate, GroupInvite
@@ -40,6 +53,9 @@ from app.services.post_service import PostService
 from app.services.resource_service import ResourceService
 from app.services.search_service import SearchService
 from app.services.user_service import UserService
+from app.services.school_service import SchoolService
+from app.services.assignment_service import AssignmentService
+from app.services.event_service import EventService
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.security import OAuth2PasswordRequestForm
 
@@ -66,6 +82,8 @@ async def register(data: RegisterRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=503,
             detail="Database unavailable. Please ensure MongoDB is running and try again.",
@@ -601,3 +619,236 @@ async def admin_users(
 ):
     items, total = await AnalyticsService().get_admin_users(page, page_size)
     return _paginated(items, total, page, page_size)
+
+
+# Additional Auth routes
+@router.post("/auth/forgot-password")
+async def forgot_password(data: ForgotPasswordRequest):
+    try:
+        token = await AuthService().forgot_password(data.email)
+        return {"message": "Password reset token generated", "reset_token": token}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/auth/reset-password")
+async def reset_password(data: ResetPasswordRequest):
+    try:
+        await AuthService().reset_password(data.token, data.new_password)
+        return {"message": "Password reset successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/auth/verify-email")
+async def verify_email(data: VerifyEmailRequest):
+    try:
+        await AuthService().verify_email(data.token)
+        return {"message": "Email verified successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# School Management routes
+@router.get("/schools")
+async def list_schools(page: int = 1, page_size: int = 20):
+    items, total = await SchoolService().list_schools(page, page_size)
+    return _paginated(items, total, page, page_size)
+
+
+@router.post("/schools", response_model=SchoolResponse)
+async def create_school(data: SchoolCreate, user: dict = Depends(RequireAdmin)):
+    try:
+        return await SchoolService().create(data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/schools/{school_id}", response_model=SchoolResponse)
+async def get_school(school_id: str):
+    try:
+        return await SchoolService().get(school_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.patch("/schools/{school_id}", response_model=SchoolResponse)
+async def update_school(school_id: str, data: SchoolUpdate, user: dict = Depends(RequireAdmin)):
+    try:
+        return await SchoolService().update(school_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/schools/{school_id}", status_code=204)
+async def delete_school(school_id: str, user: dict = Depends(RequireAdmin)):
+    try:
+        await SchoolService().delete(school_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# Assignment Management routes
+@router.get("/assignments")
+async def list_assignments(course_id: str | None = None, page: int = 1, page_size: int = 20, user: dict = Depends(get_current_user)):
+    items, total = await AssignmentService().list_assignments(course_id, page, page_size)
+    return _paginated(items, total, page, page_size)
+
+
+@router.post("/assignments", response_model=AssignmentResponse)
+async def create_assignment(data: AssignmentCreate, user: dict = Depends(RequireTeacher)):
+    try:
+        return await AssignmentService().create_assignment(user["id"], data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/assignments/{assignment_id}", response_model=AssignmentResponse)
+async def get_assignment(assignment_id: str, user: dict = Depends(get_current_user)):
+    try:
+        return await AssignmentService().get_assignment(assignment_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/assignments/{assignment_id}/submissions", response_model=SubmissionResponse)
+async def submit_assignment(assignment_id: str, data: SubmissionCreate, user: dict = Depends(get_current_user)):
+    try:
+        return await AssignmentService().submit_assignment(user["id"], assignment_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/assignments/{assignment_id}/submissions")
+async def list_submissions(assignment_id: str, page: int = 1, page_size: int = 20, user: dict = Depends(RequireTeacher)):
+    items, total = await AssignmentService().list_submissions(assignment_id, page, page_size)
+    return _paginated(items, total, page, page_size)
+
+
+@router.get("/submissions/my")
+async def list_my_submissions(user: dict = Depends(get_current_user)):
+    return await AssignmentService().get_student_submissions(user["id"])
+
+
+@router.post("/submissions/{submission_id}/grade", response_model=SubmissionResponse)
+async def grade_submission(submission_id: str, data: GradeCreate, user: dict = Depends(RequireTeacher)):
+    try:
+        return await AssignmentService().grade_submission(user["id"], submission_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# Events and Calendar routes
+@router.get("/events")
+async def list_events(reference_id: str | None = None, page: int = 1, page_size: int = 20, user: dict = Depends(get_current_user)):
+    items, total = await EventService().list_events(reference_id, page, page_size)
+    return _paginated(items, total, page, page_size)
+
+
+@router.get("/events/upcoming")
+async def upcoming_events(limit: int = 10, user: dict = Depends(get_current_user)):
+    # Let's collect user groups/department references
+    ref_ids = [user.get("department")] if user.get("department") else []
+    # Fetch upcoming
+    return await EventService().get_upcoming(ref_ids, limit)
+
+
+@router.post("/events", response_model=EventResponse)
+async def create_event(data: EventCreate, user: dict = Depends(RequireTeacher)):
+    try:
+        return await EventService().create(user["id"], data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/events/{event_id}", response_model=EventResponse)
+async def update_event(event_id: str, data: EventUpdate, user: dict = Depends(RequireTeacher)):
+    try:
+        return await EventService().update(event_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/events/{event_id}", status_code=204)
+async def delete_event(event_id: str, user: dict = Depends(RequireTeacher)):
+    try:
+        await EventService().delete(event_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# AI Announcement Summarizer
+@router.post("/announcements/{announcement_id}/summarize")
+async def summarize_announcement(announcement_id: str, user: dict = Depends(get_current_user)):
+    # Fetch announcement
+    announcement = await AnnouncementService().repo.find_by_id(announcement_id)
+    if not announcement:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+    
+    # Summarize via AI GroqClient
+    from app.ai.groq_client import groq_client
+    prompt = (
+        f"Summarize this educational announcement for students in a brief, friendly, and actionable bullet-point list.\n\n"
+        f"Title: {announcement['title']}\n"
+        f"Content:\n{announcement['content']}"
+    )
+    try:
+        res = await groq_client.generate(prompt, system="You are an educational announcement summarizer.")
+        return {"summary": res["response"]}
+    except Exception:
+        # Fallback simple summary
+        content = announcement["content"]
+        words = content.split()
+        summary = " ".join(words[:25]) + "..." if len(words) > 25 else content
+        return {"summary": summary}
+
+
+# Parent-Child Dashboard Progress Checks
+@router.post("/parent/children")
+async def add_child(child_username_or_email: str, parent: dict = Depends(get_current_user)):
+    if parent.get("role") != "parent":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only parent role can add children")
+    
+    child = await UserService().user_repo.find_by_identifier(child_username_or_email)
+    if not child:
+        raise HTTPException(status_code=404, detail="Child user not found")
+    
+    if child["role"] != "student":
+        raise HTTPException(status_code=400, detail="Identified user is not a student")
+    
+    # Add child to parent's children list
+    parent_children = parent.get("children", [])
+    if child["id"] not in parent_children:
+        parent_children.append(child["id"])
+        await UserService().user_repo.update(parent["id"], {"children": parent_children})
+    
+    return {"message": "Child added successfully", "child": await UserService().to_public(child)}
+
+
+@router.get("/parent/children")
+async def get_parent_children(parent: dict = Depends(get_current_user)):
+    if parent.get("role") != "parent":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only parent role can access children")
+    
+    child_ids = parent.get("children", [])
+    children_profiles = []
+    for cid in child_ids:
+        c = await UserService().user_repo.find_by_id(cid)
+        if c:
+            children_profiles.append(await UserService().to_public(c))
+    return children_profiles
+
+
+@router.get("/parent/children/{child_id}/progress")
+async def get_child_progress(child_id: str, parent: dict = Depends(get_current_user)):
+    if parent.get("role") != "parent":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only parent role can view child progress")
+    
+    child_ids = parent.get("children", [])
+    if child_id not in child_ids:
+        raise HTTPException(status_code=403, detail="Unauthorized to view this student's progress")
+    
+    # Get student analytics/progress
+    progress = await UserService().get_analytics(child_id)
+    return progress
+

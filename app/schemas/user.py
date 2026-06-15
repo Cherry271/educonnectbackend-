@@ -12,6 +12,7 @@ class UserPublic(BaseModel):
     username: str
     email: EmailStr
     role: UserRole
+    school: str = ""
     department: str
     faculty: str
     bio: str
@@ -23,6 +24,7 @@ class UserPublic(BaseModel):
     following_count: int = 0
     posts_count: int = 0
     resources_count: int = 0
+    children: List[str] = []
     achievements: List[dict]
     created_at: datetime
 
@@ -31,12 +33,14 @@ class UserProfileUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     bio: Optional[str] = None
+    school: Optional[str] = None
     department: Optional[str] = None
     faculty: Optional[str] = None
     skills: Optional[List[str]] = None
     interests: Optional[List[str]] = None
     profile_picture: Optional[str] = None
     cover_photo: Optional[str] = None
+    children: Optional[List[str]] = None
 
 
 class ProfileAnalytics(BaseModel):

@@ -11,6 +11,7 @@ class RegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=30)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
+    school: str = ""
     department: str = ""
     faculty: str = ""
     role: UserRole = UserRole.STUDENT
@@ -30,3 +31,16 @@ class TokenResponse(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
