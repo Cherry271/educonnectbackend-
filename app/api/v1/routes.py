@@ -210,6 +210,25 @@ async def upload_avatar(
     return {"profile_picture": url}
 
 
+@router.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...), user: dict = Depends(get_current_user)
+):
+    import os
+    import uuid
+
+    settings_obj = get_settings()
+    os.makedirs(settings_obj.UPLOAD_DIR, exist_ok=True)
+    ext = (file.filename or "file").rsplit(".", 1)[-1]
+    filename = f"chat_{uuid.uuid4().hex}.{ext}"
+    path = os.path.join(settings_obj.UPLOAD_DIR, filename)
+    content = await file.read()
+    with open(path, "wb") as f:
+        f.write(content)
+    url = f"/uploads/{filename}"
+    return {"url": url}
+
+
 @router.get("/users/me/notification-settings")
 async def get_notification_settings(user: dict = Depends(get_current_user)):
     return await UserService().get_notification_settings(user["id"])
@@ -498,6 +517,30 @@ async def send_message(
     conversation_id: str, data: MessageCreate, user: dict = Depends(get_current_user)
 ):
     return await MessageService().send_message(conversation_id, user["id"], data)
+
+
+@router.patch("/conversations/messages/{message_id}")
+async def edit_chat_message(
+    message_id: str,
+    data: MessageCreate,
+    user: dict = Depends(get_current_user),
+):
+    try:
+        return await MessageService().edit_message(message_id, user["id"], data.content)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+@router.delete("/conversations/messages/{message_id}")
+async def delete_chat_message(
+    message_id: str,
+    user: dict = Depends(get_current_user),
+):
+    try:
+        success = await MessageService().delete_message(message_id, user["id"])
+        return {"success": success}
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 
 # Notifications

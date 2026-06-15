@@ -102,3 +102,22 @@ class MessageService:
         await self.message_repo.mark_read(conversation_id, user_id)
         msgs, total = await self.message_repo.get_conversation_messages(conversation_id, page)
         return [await self._enrich_message(m) for m in msgs], total
+
+    async def edit_message(self, message_id: str, user_id: str, new_content: str) -> MessageResponse:
+        msg = await self.message_repo.find_by_id(message_id)
+        if not msg:
+            raise ValueError("Message not found")
+        if msg["sender_id"] != user_id:
+            raise ValueError("Unauthorized to edit this message")
+        updated_msg = await self.message_repo.update(message_id, {"content": new_content})
+        await self.conversation_repo.update_last_message(msg["conversation_id"], new_content)
+        return await self._enrich_message(updated_msg)
+
+    async def delete_message(self, message_id: str, user_id: str) -> bool:
+        msg = await self.message_repo.find_by_id(message_id)
+        if not msg:
+            raise ValueError("Message not found")
+        if msg["sender_id"] != user_id:
+            raise ValueError("Unauthorized to delete this message")
+        deleted = await self.message_repo.delete(message_id)
+        return deleted
